@@ -34,10 +34,13 @@ export class AuthController {
     this.authService.setAuthCookie(res, token);
 
     const frontendUrl =
-      this.config.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+      this.config.get<string>('FRONTEND_URL') ||
+      'https://aiseekhegaindia-frontend.vercel.app';
     const redirectBase =
-      frontendUrl.split(',').map((origin) => origin.trim()).find(Boolean) ||
-      'http://localhost:3000';
+      frontendUrl
+        .split(',')
+        .map((origin) => origin.trim().replace(/\/+$/, ''))
+        .find(Boolean) || 'https://aiseekhegaindia-frontend.vercel.app';
     const redirectUrl = new URL(redirectBase);
     redirectUrl.searchParams.set('auth', 'success');
     return res.redirect(redirectUrl.toString());
