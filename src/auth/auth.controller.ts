@@ -48,10 +48,10 @@ export class AuthController {
   me(@Req() req: Request) {
     const user = req.user as UserDocument;
     return {
-      id: user.id,
+      id: user.id || user._id.toString(),
       email: user.email,
       name: user.name,
-      picture: user.picture,
+      picture: user.picture ?? null,
     };
   }
 

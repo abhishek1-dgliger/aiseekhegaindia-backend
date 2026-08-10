@@ -3,10 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
+function normalizeOrigin(origin: string): string {
+  return origin.trim().replace(/\/+$/, '');
+}
+
 function parseFrontendOrigins(frontendUrl: string): string[] {
   return frontendUrl
     .split(',')
-    .map((origin) => origin.trim())
+    .map(normalizeOrigin)
     .filter(Boolean);
 }
 
@@ -27,11 +31,12 @@ async function bootstrap() {
       callback: (err: Error | null, allow?: boolean) => void,
     ) => {
       // Allow non-browser clients (no Origin header) and FRONTEND_URL allowlist.
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Never pass an Error here — cors treats that as a 500 Internal Server Error.
+      if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) {
         callback(null, true);
         return;
       }
-      callback(new Error(`CORS blocked for origin: ${origin}`), false);
+      callback(null, false);
     },
     credentials: true,
   });
