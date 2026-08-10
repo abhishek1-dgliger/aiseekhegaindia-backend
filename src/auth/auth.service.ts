@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Response } from 'express';
+import { CookieOptions, Response } from 'express';
 import { UserDocument } from '../users/schemas/user.schema';
 import { GoogleProfileInput, UsersService } from '../users/users.service';
 
@@ -9,6 +9,8 @@ export type JwtPayload = {
   sub: string;
   email: string;
 };
+
+type SameSiteOption = 'lax' | 'none' | 'strict';
 
 @Injectable()
 export class AuthService {
@@ -34,31 +36,65 @@ export class AuthService {
     const cookieName = this.config.get<string>('COOKIE_NAME') || 'access_token';
     const expiresIn = this.config.get<string>('JWT_EXPIRES_IN') || '7d';
     const maxAgeMs = this.parseExpiresToMs(expiresIn);
-    const isProd = process.env.NODE_ENV === 'production';
 
     res.cookie(cookieName, token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: isProd,
+      ...this.getCookieOptions(),
       maxAge: maxAgeMs,
-      path: '/',
     });
   }
 
   clearAuthCookie(res: Response): void {
     const cookieName = this.config.get<string>('COOKIE_NAME') || 'access_token';
-    const isProd = process.env.NODE_ENV === 'production';
-
-    res.clearCookie(cookieName, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: isProd,
-      path: '/',
-    });
+    res.clearCookie(cookieName, this.getCookieOptions());
   }
 
   async getUserFromPayload(payload: JwtPayload): Promise<UserDocument | null> {
     return this.usersService.findById(payload.sub);
+  }
+
+  private getCookieOptions(): CookieOptions {
+    const isProd = process.env.NODE_ENV === 'production';
+    const sameSite = this.resolveSameSite(isProd);
+    const secure = this.resolveSecure(isProd, sameSite);
+
+    return {
+      httpOnly: true,
+      sameSite,
+      secure,
+      path: '/',
+    };
+  }
+
+  private resolveSameSite(isProd: boolean): SameSiteOption {
+    const raw = (this.config.get<string>('COOKIE_SAMESITE') || '')
+      .trim()
+      .toLowerCase();
+
+    if (raw === 'lax' || raw === 'none' || raw === 'strict') {
+      return raw;
+    }
+
+    // Cross-site FE↔API in production needs SameSite=None.
+    return isProd ? 'none' : 'lax';
+  }
+
+  private resolveSecure(isProd: boolean, sameSite: SameSiteOption): boolean {
+    const raw = (this.config.get<string>('COOKIE_SECURE') || '')
+      .trim()
+      .toLowerCase();
+
+    if (raw === 'true' || raw === '1') {
+      return true;
+    }
+    if (raw === 'false' || raw === '0') {
+      return false;
+    }
+
+    // SameSite=None requires Secure; otherwise follow NODE_ENV.
+    if (sameSite === 'none') {
+      return true;
+    }
+    return isProd;
   }
 
   private parseExpiresToMs(value: string): number {

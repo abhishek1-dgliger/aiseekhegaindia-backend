@@ -35,7 +35,12 @@ export class AuthController {
 
     const frontendUrl =
       this.config.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-    return res.redirect(frontendUrl);
+    const redirectBase =
+      frontendUrl.split(',').map((origin) => origin.trim()).find(Boolean) ||
+      'http://localhost:3000';
+    const redirectUrl = new URL(redirectBase);
+    redirectUrl.searchParams.set('auth', 'success');
+    return res.redirect(redirectUrl.toString());
   }
 
   @Get('me')
